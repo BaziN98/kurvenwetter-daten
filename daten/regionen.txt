@@ -1,0 +1,21 @@
+# Regionen, für die Kartendaten aufbereitet werden. Eine Zeile = ein Geofabrik-Auszug.
+# Die Namen sind die Pfade von https://download.geofabrik.de (ohne "-latest.osm.pbf").
+# Zeilen mit # werden übersprungen. Zum Erweitern einfach das # entfernen.
+
+# Start: Österreich, Schweiz, Slowenien, Norditalien, Süddeutschland (ca. 4 GB Download)
+europe/austria
+europe/switzerland
+europe/liechtenstein
+europe/slovenia
+europe/italy/nord-est
+europe/italy/nord-ovest
+europe/germany/bayern
+europe/germany/baden-wuerttemberg
+
+# Später: ganz Deutschland, Italien, Frankreich. Dann die einzelnen Teilregionen oben auskommentieren,
+# sonst werden sie doppelt geladen.
+#europe/germany
+#europe/italy
+#europe/france
+#europe/czech-republic
+#europe/croatia
