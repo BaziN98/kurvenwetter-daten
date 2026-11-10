@@ -1,0 +1,79 @@
+name: Kartendaten und Webseite
+
+# Baut die Kartendaten aus OpenStreetMap und stellt sie (und die Seite) über GitHub Pages bereit.
+# Läuft automatisch einmal im Monat, bei Änderungen im Repository und auf Knopfdruck.
+on:
+  workflow_dispatch:
+    inputs:
+      neu:
+        description: Kartendaten neu bauen, auch wenn sie für diesen Monat schon da sind
+        type: boolean
+        default: false
+  schedule:
+    - cron: '17 3 3 * *'      # am 3. jedes Monats, 03:17 UTC
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  bauen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Monat bestimmen
+        id: zeit
+        run: echo "monat=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+
+      # Die fertigen Daten werden je Monat gemerkt. Eine Änderung an der Seite lädt dann nicht jedes Mal 4 GB neu.
+      - name: Fertige Kartendaten dieses Monats holen
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: site/data
+          key: daten-v1-${{ hashFiles('daten/**') }}-${{ steps.zeit.outputs.monat }}${{ inputs.neu && format('-{0}', github.run_id) || '' }}
+
+      - name: Werkzeug installieren
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq osmium-tool
+
+      - name: Kartendaten aufbereiten
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: bash daten/build.sh site/data
+
+      - name: Seite zusammenstellen
+        run: |
+          mkdir -p site
+          touch site/.nojekyll
+          if [ -f index.html ]; then
+            cp index.html site/index.html
+          else
+            echo '<!doctype html><meta charset="utf-8"><title>Kurvenwetter-Daten</title><p>Kurvenwetter: Kartendaten. Verzeichnis: <a href="data/index.json">data/index.json</a></p>' > site/index.html
+          fi
+          for f in manifest.webmanifest sw.js robots.txt; do [ -f "$f" ] && cp "$f" site/ || true; done
+          for d in assets icons; do [ -d "$d" ] && cp -r "$d" site/ || true; done
+          echo "Kacheln: $(find site/data -name '*.json' | wc -l), Größe: $(du -sh site/data | cut -f1)"
+          python3 -c "import json; d=json.load(open('site/data/index.json')); print('Stand', d['built'], d['stats'], 'Regionen:', ', '.join(d['regions']))"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  bereitstellen:
+    needs: bauen
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
